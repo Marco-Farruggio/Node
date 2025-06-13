@@ -31,9 +31,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 import customtkinter as ctk
 import threading
 import requests
-import tempfile
 import socket
-import atexit
 import sys
 import os
 
