@@ -18,8 +18,6 @@ Custom Messaging Protocol planned implementation.
 Github:
 -------
 
-Warning: Out-of-date Github!
-
 https://github.com/Marco-Farruggio/Node
 """
 
@@ -27,9 +25,11 @@ https://github.com/Marco-Farruggio/Node
 # IMPORTS
 # =-----=
 
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union, List
 import customtkinter as ctk
+from PIL import Image
 import threading
+import platform
 import requests
 import socket
 import sys
@@ -39,7 +39,7 @@ import os
 # CTK SETUP
 # =-------=
 
-ctk.set_appearance_mode("dark")
+ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("green")
 
 # =-------=
@@ -52,6 +52,13 @@ PADY = 10          # CTK widget default pady (px)
 CORNER_RADIUS = 10 # CTK widget default corner radius
 WIN_MINX = 360     # CTK minimum x window size (px)
 WIN_MINY = 356     # CTK minimum y window size (px)
+
+# Contact card constants
+CONTACT_CARD_X = 100
+CONTACT_CARD_Y = 150
+
+# CTK Image constants
+ICON_SIZE = (16, 16)
 
 UNLOCKED = "normal" # CTK text box unlocked state
 LOCKED = "disabled" # CTK text box locked state
@@ -93,13 +100,13 @@ SOFTWARE."""
 # DUNDERS & METADATA
 # =----------------=
 
-__version__ = "0.0.6"
+__version__ = "0.0.7"
 __author__ = "Marco Farruggio"
 __maintainer__ = "Marco Farruggio"
 __email__ = "marcofarruggiopersonal@gmail.com"
 __status__ = "development"
-__platform__ = "Cross-platform" # Intended: Windows Best: Windows 11 x86_64. Can be used for macOS with external bundlers (.dmg / WineBottles for .exe)
-__dependencies__ = ["customtkinter", "requests"] # GUI backend
+__platform__ = "Cross-platform" # Compiled launchers available for MacOS and Windows
+__dependencies__ = ["customtkinter", "requests", "PIL"]
 __created__ = "19-05-2025"
 __license__ = "MIT" # Open-source community
 __description__ = "Node is a lightweight, socket based, open source chat program."
@@ -116,15 +123,27 @@ Read changelogs bottom to top
 
 FORMAL UPDATE LOG:
 
-0.0.5: Added Github Repository for cloud saving
-0.0.4: Updated settings with "Toggle Always On Top" button
-0.0.3: Refactored socket backend, added Chat specific GUI
-0.0.2: Polished GUI, added "Chat" menu, cleaned internal codes
-0.0.1: Added GUI & data transmision backend
-0.0.0: Created
+0.0.7: Built for macOS Sonoma and reworked Settings & GUI backend handling.
+0.0.6: Finished Chat displays with text.
+0.0.5: Added Github Repository for cloud saving.
+0.0.4: Updated settings with "Toggle Always On Top" button.
+0.0.3: Refactored socket backend, added Chat specific GUI.
+0.0.2: Polished GUI, added "Chat" menu, cleaned internal codes.
+0.0.1: Added GUI & data transmision backend.
+0.0.0: Created.
 
 INFORMAL UPDATE LOG (REALISTIC):
 
+0.0.74: okay i added an error handling window, (im way too tired to sound happy lol)
+0.0.73: first perfect build for macos high sierra, added error handling windows, planning to remove console and add internal logging. AFTER i try to make a compiler myself :sob:
+0.0.72: Procrastination update, reworked settings... AGAIN OMDDSSS, now we have a dropdown menu for theme and appearance mode, reset settings now works properly, and changing appearance mode works properly now instead of breaking stuff hahaha
+0.0.71: Woah edit icon (It looks trash)
+0.0.7: My ear ith wingingg and it downt feewl nicey :((
+0.0.69: completely reworked how i show the contacts to make it easier for me (laziness :))))
+0.0.68: woah contacts time
+0.0.67: RAGHGHHHHHH
+0.0.66: did some research into ipv6, will incldue it later when most things support it, may add it to the ipconfig menu, idk 4now
+0.0.65: added a theme selector to settings and i have to remake the widgets every time its changed lol so i put it in a function of its own :) yippe
 0.0.64: Changed the GUI so now in settings the toggle topmost isnt a button lol but not a switch, idk why it was a button before, i might have been high that day idk
 0.0.63: Fixed entry box locking itself :SOBOOBBB: rendered recieve messages finally, should be last update for actually send recieve basic text display, maybe bubbles later??
 0.0.62: fixed a problem with displaying text lol i was forgetting to clear the text box
@@ -263,17 +282,39 @@ read/write
 Yippe!
 """
 
-def get_node_icon_path() -> str:
-    # PyInstaller or python script?
-    if hasattr(sys, "_MEIPASS"):
-        base_path = sys._MEIPASS
+def get_resource_path(filename: str) -> str:
+    # Running on Windows
+    if platform.system() == "Windows":
+        if hasattr(sys, "_MEIPASS"):
+            # Using Pyinstaller
+            base_path = sys._MEIPASS
+        
+        else:
+            # Python file ran normally
+            base_path = os.path.dirname(os.path.abspath(__file__))
     
+    # Running on MacOS
+    elif platform.system() == "Darwin":
+        if hasattr(sys, "_MEIPASS"):
+            # Using Pyinstaller
+            base_path = sys._MEIPASS
+        
+        # Using py2app bundling frozen bugs   
+        elif getattr(sys, "Frozen", False):
+            base_path = os.path.join(os.path.dirname(sys.executable), "..", "Resources")
+
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            
     else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-
-    icon_src = os.path.join(base_path, "node_icon.ico")
-
-    return icon_src
+        raise_error_window("Unsupported Operating System")
+    
+    path = os.path.join(base_path, filename)
+ 
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Resource {filename} not found at {path}")
+    
+    return path
 
 def fetch_ip_config() -> str:
     # =------------=
@@ -282,7 +323,7 @@ def fetch_ip_config() -> str:
 
     try:
         primary_ipv4_address = socket.gethostbyname(socket.gethostname())
-    
+
     except Exception as e:
         primary_ipv4_address = "Unavailable"
 
@@ -363,12 +404,27 @@ Associated IP Addresses: {associated_addresses}
 Any more information and it probably gets Illegal ;) teehee
 """
 
+def raise_error_window(error_message: str = "An Unknown Error Occured", fatal=True) -> None:
+    def _exit_with_error_code(error_code=1) -> None:
+        sys.exit(error_code)
+
+    window = ctk.CTk()
+    window.title("Error Window")
+    window.iconbitmap(get_resource_path("error_window_icon.ico"))
+    
+    message_display = ctk.CTkLabel(window, text=error_message)
+    message_display.pack(padx=PADX, pady=PADY)
+    exit_button = ctk.CTkButton(window, text="Terminate Process", command=_exit_with_error_code if fatal else window.destroy())
+    exit_button.pack(padx=PADX, pady=PADY)
+    
+    window.mainloop()
+    
 # =-----=
 # CLASSES
 # =-----=
 
 class Contact:
-    def __init__(self, associated_addresses: list[str], name: str) -> None:
+    def __init__(self, associated_addresses: List[str], name: str) -> None:
         self.associated_addresses = associated_addresses
         self.name = name
 
@@ -378,13 +434,19 @@ class ClientHandler:
         self.func_on_leave = func_on_leave
         self.func_on_recieved = func_on_recieved
         self.verbose = verbose
+        self.log = ""
 
         # =-----------------=
         # SOCKET SERVER SETUP
         # =-----------------=
 
         self.server = socket.socket(ADDRESS_FAMILY, PROTOCOL) # IPv4, TCP
-        self.server.bind((GLOBAL, PROGRAM_PORT)) # Listen on 0.0.0.0 on port 53210 (PROGRAM_PORT)
+        try:
+            self.server.bind((GLOBAL, PROGRAM_PORT)) # Listen on 0.0.0.0 on port 53210 (PROGRAM_PORT)
+        
+        except OSError:
+            raise_error_window("Unable to run multiple instances concurrently.")
+        
         self.server.listen()
         self.clients = [] # List of active clients
 
@@ -429,8 +491,8 @@ class ClientHandler:
                         if self.verbose:
                             print(f"[{log_id}] Recieved: {message}")
                             
-                            if self.func_on_recieved:
-                                self.func_on_recieved(f"{client_address[0]}:{client_address[1]}", message)
+                        if self.func_on_recieved:
+                            self.func_on_recieved(f"{client_address[0]}:{client_address[1]}", message)
 
                     else:
                         conn_closed_msg = "Disconnected gracefully"
@@ -445,9 +507,9 @@ class ClientHandler:
                 except Exception as e:
                     if self.verbose:
                         print(f"[{log_id}] Error: {e}")
-                    
+
                     break
-        
+
         finally:
             client_socket.close()
             self.clients.remove(client_socket)
@@ -481,14 +543,15 @@ class ChatGUI:
         self.gui.title("Node")
         self.gui.minsize(WIN_MINX, WIN_MINY)
         self.gui.geometry("540x540")
-
-        self.gui.iconbitmap(get_node_icon_path())
+        self.gui.iconbitmap(get_resource_path("node_icon.ico"))
 
         # =-------=
         # VARIABLES
         # =-------=
 
         self.viewing = "settings"
+        self.topmost = False
+        self.appearance_mode = "System"
 
         # =-----=
         # WIDGETS
@@ -503,11 +566,36 @@ class ChatGUI:
         self.client_chats = {} # client_address -> chat's content
         self.current_client = None
 
+        self.contacts = []
+        self.contacts.append(Contact(["127.0.0.1"], "This PC"))
+        self.contacts.append(Contact(["195.180.32.34"], "Marco Farruggio"))
+
+    def _create_contact_card(self, contact: Contact) -> ctk.CTkFrame:
+        card = ctk.CTkFrame(master=self.contacts_scrollable_frame, height=CONTACT_CARD_Y, corner_radius=CORNER_RADIUS)
+
+        def confirm_contact_name(event) -> None:
+            contact.name = name_box.get("1.0", ctk.END).strip()
+            name_box.configure(state="disabled")
+
+        edit_button = ctk.CTkButton(master=card, image=edit_icon, text="", command=lambda: name_box.configure(state="normal"), width=28)
+        edit_button.pack(padx=(0, 5), pady=5, side="right", anchor="n")
+
+        name_box = ctk.CTkTextbox(master=card, height=contact.name.count("\n") + 1)
+        name_box.insert("0.0", contact.name)
+        name_box.configure(state="disabled")
+        name_box.pack(pady=5, padx=5, fill="x")
+        name_box.bind("<Return>", confirm_contact_name)
+
+        addr_label = ctk.CTkLabel(master=card, text=contact.associated_addresses[0]) # Primary Address
+        addr_label.pack(pady=(0, 5), padx=5, fill="x")
+
+        return card
+
     def create_widgets(self) -> None:
         # =--------=
         # CTK FRAMES
         # =--------=
-        
+
         # Menu frame (left)
         self.menu_frame = ctk.CTkFrame(master=self.gui, width=400, corner_radius=CORNER_RADIUS)
         self.menu_frame.pack(side="left", fill="y", padx=PADX, pady=PADY)
@@ -552,9 +640,9 @@ class ChatGUI:
 
         self.send_button = ctk.CTkButton(master=self.display_frame, text="Send", command=self.send_message)
 
-        # Dark mode (default) switch
-        self.dark_mode_switch = ctk.CTkSwitch(self.display_frame, text="Dark Mode", command=self._toggle_theme)
-        self.dark_mode_switch.toggle() # Start on (dark mode)
+        # Appearance Mode widgets
+        self.set_appearance_mode_label = ctk.CTkLabel(self.display_frame, text="Appearance Mode")
+        self.set_appearance_mode_option_menu = ctk.CTkOptionMenu(self.display_frame, values=["System", "Light", "Dark"], command=self._set_appearance_mode)
 
         # Display frame self.display_textbox
         self.display_textbox = ctk.CTkTextbox(master=self.display_frame, wrap="word")
@@ -564,10 +652,47 @@ class ChatGUI:
         self.topmost_switch = ctk.CTkSwitch(self.display_frame, text="Always On Top", command=self._toggle_topmost)
 
         self.new_chat_ip_entry = ctk.CTkEntry(self.display_frame, placeholder_text="x.x.x.x")
+        self.new_chat_ip_entry.bind("<Return>", self._new_chat)
 
         self.new_chat_attempt_button = ctk.CTkButton(self.display_frame, text="Attempt Connection", command=self._new_chat)
 
         self.default_settings_button = ctk.CTkButton(self.display_frame, text="Reset Defaults", command=self._reset_settings)
+
+        self.set_theme_label = ctk.CTkLabel(self.display_frame, text="Set Theme")
+        self.set_theme_dropdown = ctk.CTkOptionMenu(self.display_frame, values=["Green", "Blue", "Dark Blue"], command=self._set_theme)
+        
+        self.contacts_scrollable_frame = ctk.CTkScrollableFrame(master=self.display_frame, corner_radius=CORNER_RADIUS)
+
+        self.create_contact_card = ctk.CTkFrame(master=self.contacts_scrollable_frame, width=CONTACT_CARD_X, height=CONTACT_CARD_Y, corner_radius=CORNER_RADIUS)
+
+    def _set_appearance_mode(self, choice: str) -> None:
+        """Set the GUI appearance mode based on the selection."""
+        ctk.set_appearance_mode(choice.lower())
+        self.appearance_mode = choice
+    
+    def _set_theme(self, theme: str) -> None:
+        # Kill all the children
+        for child in self.gui.winfo_children():
+            child.destroy()
+
+        ctk.set_default_color_theme("dark-blue" if theme == "Dark Blue" else theme.lower())  # options: "blue", "dark-blue", "green"
+        self.create_widgets()
+        self.set_theme_dropdown.set(theme)
+        self.set_appearance_mode_option_menu.set(self.appearance_mode)
+        
+        if self.topmost:
+            self.topmost_switch.select()
+            
+        for addr in self.client_buttons:
+            def on_click(addr=addr):
+                self.current_client = addr
+                self.update_display("chat")
+
+            btn = ctk.CTkButton(master=self.menu_frame, text=f"Client {addr}", command=on_click)
+            btn.pack(pady=PADX, padx=PADY, fill="x")
+            self.client_buttons[addr] = btn
+
+        self.update_display()
 
     def recieve_data(self, client_address, data: Union[str, bytes, bytearray]) -> None:
         self.client_chats[client_address] += f"Them: {data}\n"
@@ -579,9 +704,12 @@ class ChatGUI:
         self.display_textbox.configure(state=LOCKED)
 
     def _reset_settings(self) -> None:
-        if self.dark_mode_switch.get() != 1:
-            self.dark_mode_switch.toggle()
+        self.set_appearance_mode_option_menu.set("Dark")
+        self._set_appearance_mode("Dark")
 
+        self.set_theme_dropdown.set("Green")
+        self._set_theme("Green")
+        
         if self.topmost_switch.get() != 0:
             self.topmost_switch.toggle()
 
@@ -599,11 +727,8 @@ class ChatGUI:
         self.client_buttons[formatted] = btn
 
     def remove_client(self, client_address):
-        if isinstance(client_address, tuple):
-            client_address = f"{client_address[0]}:{client_address[1]}"
-
         self.client_buttons[client_address].pack_forget() # Hide button
-        
+
         del self.client_buttons[client_address] # Delete button from list of client chat buttons (dict)
         del self.client_sockets[client_address] # Remove client's socket object from the list of sockets (dict)
         del self.client_chats[client_address] # Delete chat data (May be removed later, with saving to .txt/.csv/.bin
@@ -614,11 +739,8 @@ class ChatGUI:
         Toggles the topmost attribute of the main ctk window ("-topmost")
         """
 
-        if self.topmost_switch.get() == 1:
-            self.gui.attributes("-topmost", True)
-        
-        else:
-            self.gui.attributes("-topmost", False)
+        self.gui.attributes("-topmost", bool(self.topmost_switch.get()))
+        self.topmost = bool(self.topmost_switch.get())
 
     def _toggle_theme(self) -> None:
         """
@@ -629,7 +751,7 @@ class ChatGUI:
 
     def _new_chat(self) -> None:
         # Setup socket
-        new_chat_ip = self.new_chat_ip_entry.get()
+        new_chat_ip = self.new_chat_ip_entry.get().strip()
 
         if not new_chat_ip:
             return
@@ -637,8 +759,6 @@ class ChatGUI:
         try:
             client_sock = socket.socket(ADDRESS_FAMILY, PROTOCOL)
             client_sock.connect((new_chat_ip, PROGRAM_PORT))
-
-            print("Starting new Peer Thread")
 
             threading.Thread(target=self.client_handler._handle_client, args=(client_sock, (new_chat_ip, PROGRAM_PORT)), daemon=True).start()
 
@@ -648,33 +768,50 @@ class ChatGUI:
         except Exception as e:
             print(f"Error: {e}")
 
+    def _hide_menu_widgets(self) -> None:
+        # =-----------------=
+        # HIDE UNUSED WIDGETS
+        # =-----------------=
+        self.default_settings_button.pack_forget()
+        self.entry_box.pack_forget()
+        self.set_appearance_mode_label.pack_forget()
+        self.set_appearance_mode_option_menu.pack_forget()
+        self.send_button.pack_forget()
+        self.topmost_switch.pack_forget()
+        self.new_chat_ip_entry.pack_forget()
+        self.new_chat_attempt_button.pack_forget()
+        self.set_theme_dropdown.pack_forget()
+        self.create_contact_card.pack_forget()
+        self.display_textbox.pack_forget()
+        self.contacts_scrollable_frame.pack_forget()
+        self.set_theme_label.pack_forget()
+
     def update_display(self, view: Optional[str]=None) -> None:
         if view:
             self.viewing = view
 
+        self._hide_menu_widgets()
+
         if self.viewing == "settings":
-            # Hide unused widgets
-            self.entry_box.pack_forget() # Hide entry box
-            self.display_textbox.pack_forget() # Hide display textbox
-            self.send_button.pack_forget()
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
-            # Show used widgets
-            self.dark_mode_switch.pack(pady=PADX, padx=PADY) # Show dark mode switch
-            self.topmost_switch.pack(padx=PADX, pady=PADY) # Show toggle topmost switch
+            # =---------------=
+            # SHOW USED WIDGETS
+            # =---------------=
+            
+            # Show appearance mode selection widgets
+            self.set_appearance_mode_label.pack(padx=PADX, pady=(PADY, 0))
+            self.set_appearance_mode_option_menu.pack(padx=PADX, pady=PADY)
+            
+            # Show theme selector drop down
+            self.set_theme_label.pack(padx=PADX, pady=0)
+            self.set_theme_dropdown.pack(padx=PADX, pady=PADY)
+            
+            # Show toggle topmost switch
+            self.topmost_switch.pack(padx=PADX, pady=PADY)
+            
+            # Show reset to default settings button
             self.default_settings_button.pack(padx=PADX, pady=PADY) # Show the reset settings button
-
+        
         elif self.viewing == "license":
-            # Hide unused widgets
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget()
-            self.dark_mode_switch.pack_forget()
-            self.send_button.pack_forget()
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # Show used widgets
             self.display_textbox.pack(padx=PADX, pady=PADY, fill="both", expand=True)
             self.display_textbox.configure(state=UNLOCKED)
@@ -683,15 +820,6 @@ class ChatGUI:
             self.display_textbox.configure(state=LOCKED)
 
         elif self.viewing == "changelog":
-            # Hide unused widgets
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget() # Hide entry box
-            self.dark_mode_switch.pack_forget() # Hide theme switch
-            self.send_button.pack_forget()
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # Show used widgets
             self.display_textbox.pack(padx=PADX, pady=PADY, fill="both", expand=True)
             
@@ -702,15 +830,6 @@ class ChatGUI:
             self.display_textbox.configure(state=LOCKED)
 
         elif self.viewing == "info":
-            # Hide unused widgets
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget() # Hide entry box
-            self.dark_mode_switch.pack_forget() # Hide theme switch
-            self.send_button.pack_forget()
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # Show used widgets
             self.display_textbox.pack(padx=PADX, pady=PADY, fill="both", expand=True)
 
@@ -721,15 +840,6 @@ class ChatGUI:
             self.display_textbox.configure(state=LOCKED)
 
         elif self.viewing == "ip_config":
-            # Hide unused widgets
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget() # Hide entry box
-            self.dark_mode_switch.pack_forget() # Hide theme switch
-            self.send_button.pack_forget()
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # Show used widgets
             self.display_textbox.pack(padx=PADX, pady=PADY, fill="both", expand=True)
 
@@ -740,15 +850,6 @@ class ChatGUI:
             self.display_textbox.configure(state=LOCKED)
         
         elif self.viewing == "chat":
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget() # Hide entry box
-            self.send_button.pack_forget() # Hide the send button so it can be rendered in order
-            self.dark_mode_switch.pack_forget() # Hide theme switch
-            self.display_textbox.pack_forget()
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # Show used widgets
             self.display_textbox.pack(padx=PADX, pady=PADY, fill="both", expand=True)
 
@@ -762,34 +863,21 @@ class ChatGUI:
             self.send_button.pack(pady=(0, PADY), padx=PADY, fill="x")
 
         elif self.viewing == "contacts":
-            # =-----------------=
-            # HIDE UNUSED WIDGETS
-            # =-----------------=
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget() # Hide entry box
-            self.send_button.pack_forget() # Hide the send button
-            self.dark_mode_switch.pack_forget() # Hide theme switch
-            self.display_textbox.pack_forget() # Hide the display textbox
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # =---------------=
             # SHOW USED WIDGETS
             # =---------------=
+            self.contacts_scrollable_frame.pack(fill="both", expand=True, padx=PADX, pady=PADY)
+            
+            global edit_icon
+            edit_icon = ctk.CTkImage(Image.open(get_resource_path("edit_icon.png")), size=ICON_SIZE)
+
+            for child in self.contacts_scrollable_frame.winfo_children():
+                child.destroy()
+
+            for contact in self.contacts:
+                self._create_contact_card(contact).pack(pady=(0, PADY), fill="x")
 
         elif self.viewing == "new_chat":
-            self.default_settings_button.pack_forget()
-            self.entry_box.pack_forget() # Hide entry box
-            self.send_button.pack_forget() # Hide the send button
-            self.dark_mode_switch.pack_forget() # Hide theme switch
-            self.display_textbox.pack_forget() # Hide the display textbox
-            self.topmost_switch.pack_forget() # Hide toggle topmost switch (settings)
-            self.new_chat_ip_entry.pack_forget()
-            self.new_chat_attempt_button.pack_forget()
-
             # Show required widgets
             self.new_chat_ip_entry.pack(pady=PADY, padx=PADY, fill="x")
             self.new_chat_attempt_button.pack(pady=(0, PADY), padx=PADY, fill="x")
